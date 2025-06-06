@@ -1,0 +1,411 @@
+```java
+                            int end = Integer.parseInt(range[1]);
+                            for (int port = start; port <= end; port++) {
+                                userPortsExpanded.add(port);
+                                userPortToOriginal.put(port, portSpec);
+                            }
+                        } catch (NumberFormatException e) {
+                            // Skip invalid ranges
+                            continue;
+                        }
+                    } else {
+                        try {
+                            int port = Integer.parseInt(portSpec);
+                            userPortsExpanded.add(port);
+                            userPortToOriginal.put(port, portSpec);
+                        } catch (NumberFormatException e) {
+                            // Skip invalid ports
+                            continue;
+                        }
+                    }
+                }
+                
+                // Expand service group TCP ports
+                Set<Integer> sgPortsExpanded = new HashSet<>();
+                Map<Integer, String> portToMatchReason = new HashMap<>();
+                expandPorts(sgTcpPorts, sgPortsExpanded, portToMatchReason);
+                
+                // Find matching and non-matching ports
+                Set<Integer> matchingPorts = new HashSet<>(userPortsExpanded);
+                matchingPorts.retainAll(sgPortsExpanded);
+                
+                Set<Integer> nonMatchingPorts = new HashSet<>(userPortsExpanded);
+                nonMatchingPorts.removeAll(sgPortsExpanded);
+                
+                // Process matches - group by original user port specification
+                Map<String, Set<Integer>> matchesByOriginalSpec = new HashMap<>();
+                
+                for (Integer port : matchingPorts) {
+                    String origSpec = userPortToOriginal.get(port);
+                    matchesByOriginalSpec.computeIfAbsent(origSpec, k -> new HashSet<>()).add(port);
+                }
+                
+                // Generate match results
+                for (Map.Entry<String, Set<Integer>> entry : matchesByOriginalSpec.entrySet()) {
+                    String origSpec = entry.getKey();
+                    Set<Integer> matchedPorts = entry.getValue();
+                    
+                    if (origSpec.contains("-")) {
+                        // For ranges, check if all ports in range matched
+                        String[] range = origSpec.split("-");
+                        int start = Integer.parseInt(range[0]);
+                        int end = Integer.parseInt(range[1]);
+                        int expectedSize = end - start + 1;
+                        
+                        if (matchedPorts.size() == expectedSize) {
+                            // Find best containing range
+                            String bestMatch = findBestContainingRange(start, end, sgTcpPorts);
+                            tcpMatches.put(origSpec, bestMatch != null ? 
+                                    "contained_in_range:" + bestMatch : "multiple_matches");
+                        } else {
+                            // Partial match
+                            tcpMatches.put(origSpec, "partial_match");
+                            resultMap.put("matches", false);
+                            resultMap.put("failedOn", "tcp:" + origSpec);
+                        }
+                    } else {
+                        // For single ports, use the stored match reason
+                        int port = Integer.parseInt(origSpec);
+                        tcpMatches.put(origSpec, portToMatchReason.get(port));
+                    }
+                }
+                
+                // Process non-matches
+                for (Integer port : nonMatchingPorts) {
+                    String origSpec = userPortToOriginal.get(port);
+                    if (!tcpMatches.containsKey(origSpec)) {
+                        tcpMatches.put(origSpec, "no_match");
+                        resultMap.put("matches", false);
+                        resultMap.put("failedOn", "tcp:" + origSpec);
+                    }
+                }
+            }
+        }
+        
+        // Process UDP ports
+        if (udpPorts != null && !udpPorts.isEmpty()) {
+            // Fast path: Check for "all" in service group
+            if (sgUdpPorts.contains("all")) {
+                for (String port : udpPorts) {
+                    if (port != null) {
+                        udpMatches.put(port, "all_match");
+                    }
+                }
+            } else {
+                // Expand user UDP ports
+                Set<Integer> userPortsExpanded = new HashSet<>();
+                Map<Integer, String> userPortToOriginal = new HashMap<>();
+                
+                for (String portSpec : udpPorts) {
+                    if (portSpec == null) continue;
+                    if (portSpec.contains("-")) {
+                        String[] range = portSpec.split("-");
+                        try {
+                            int start = Integer.parseInt(range[0]);
+                            int end = Integer.parseInt(range[1]);
+                            for (int port = start; port <= end; port++) {
+                                userPortsExpanded.add(port);
+                                userPortToOriginal.put(port, portSpec);
+                            }
+                        } catch (NumberFormatException e) {
+                            // Skip invalid ranges
+                            continue;
+                        }
+                    } else {
+                        try {
+                            int port = Integer.parseInt(portSpec);
+                            userPortsExpanded.add(port);
+                            userPortToOriginal.put(port, portSpec);
+                        } catch (NumberFormatException e) {
+                            // Skip invalid ports
+                            continue;
+                        }
+                    }
+                }
+                
+                // Expand service group UDP ports
+                Set<Integer> sgPortsExpanded = new HashSet<>();
+                Map<Integer, String> portToMatchReason = new HashMap<>();
+                expandPorts(sgUdpPorts, sgPortsExpanded, portToMatchReason);
+                
+                // Find matching and non-matching ports
+                Set<Integer> matchingPorts = new HashSet<>(userPortsExpanded);
+                matchingPorts.retainAll(sgPortsExpanded);
+                
+                Set<Integer> nonMatchingPorts = new HashSet<>(userPortsExpanded);
+                nonMatchingPorts.removeAll(sgPortsExpanded);
+                
+                // Process matches - group by original user port specification
+                Map<String, Set<Integer>> matchesByOriginalSpec = new HashMap<>();
+                
+                for (Integer port : matchingPorts) {
+                    String origSpec = userPortToOriginal.get(port);
+                    matchesByOriginalSpec.computeIfAbsent(origSpec, k -> new HashSet<>()).add(port);
+                }
+                
+                // Generate match results
+                for (Map.Entry<String, Set<Integer>> entry : matchesByOriginalSpec.entrySet()) {
+                    String origSpec = entry.getKey();
+                    Set<Integer> matchedPorts = entry.getValue();
+                    
+                    if (origSpec.contains("-")) {
+                        // For ranges, check if all ports in range matched
+                        String[] range = origSpec.split("-");
+                        int start = Integer.parseInt(range[0]);
+                        int end = Integer.parseInt(range[1]);
+                        int expectedSize = end - start + 1;
+                        
+                        if (matchedPorts.size() == expectedSize) {
+                            // Find best containing range
+                            String bestMatch = findBestContainingRange(start, end, sgUdpPorts);
+                            udpMatches.put(origSpec, bestMatch != null ? 
+                                    "contained_in_range:" + bestMatch : "multiple_matches");
+                        } else {
+                            // Partial match
+                            udpMatches.put(origSpec, "partial_match");
+                            resultMap.put("matches", false);
+                            resultMap.put("failedOn", "udp:" + origSpec);
+                        }
+                    } else {
+                        // For single ports, use the stored match reason
+                        int port = Integer.parseInt(origSpec);
+                        udpMatches.put(origSpec, portToMatchReason.get(port));
+                    }
+                }
+                
+                // Process non-matches
+                for (Integer port : nonMatchingPorts) {
+                    String origSpec = userPortToOriginal.get(port);
+                    if (!udpMatches.containsKey(origSpec)) {
+                        udpMatches.put(origSpec, "no_match");
+                        resultMap.put("matches", false);
+                        resultMap.put("failedOn", "udp:" + origSpec);
+                    }
+                }
+            }
+        }
+        
+        // Process ICMP types
+        if (icmpTypes != null && !icmpTypes.isEmpty()) {
+            // Fast path: "all" or "any:any" matches everything
+            if (sgIcmpTypes.contains("all") || sgIcmpTypes.contains("any:any")) {
+                for (String type : icmpTypes) {
+                    if (type != null) {
+                        icmpMatches.put(type, "all_match");
+                    }
+                }
+            } else {
+                // Direct matches
+                Set<String> exactMatches = new HashSet<>(sgIcmpTypes);
+                
+                // Find all wildcard matches
+                Map<String, Set<String>> typeToWildcards = new HashMap<>(); // type -> wildcards like "type:any"
+                Map<String, Set<String>> codeToWildcards = new HashMap<>(); // code -> wildcards like "any:code"
+                
+                for (String sgType : sgIcmpTypes) {
+                    if (sgType == null) continue;
+                    String[] parts = sgType.split(":");
+                    if (parts.length == 2) {
+                        String type = parts[0];
+                        String code = parts[1];
+                        
+                        if (code.equals("any")) {
+                            typeToWildcards.computeIfAbsent(type, k -> new HashSet<>()).add(sgType);
+                        } else if (type.equals("any")) {
+                            codeToWildcards.computeIfAbsent(code, k -> new HashSet<>()).add(sgType);
+                        }
+                    }
+                }
+                
+                // Check each ICMP type
+                for (String icmpType : icmpTypes) {
+                    if (icmpType == null) continue;
+                    // Check for exact match
+                    if (exactMatches.contains(icmpType)) {
+                        icmpMatches.put(icmpType, "exact_match:" + icmpType);
+                        continue;
+                    }
+                    
+                    // Check for wildcard matches
+                    boolean matched = false;
+                    String[] parts = icmpType.split(":");
+                    if (parts.length == 2) {
+                        String type = parts[0];
+                        String code = parts[1];
+                        
+                        // Check type wildcards (e.g., "8:any" allows "8:0")
+                        if (typeToWildcards.containsKey(type)) {
+                            String wildcard = typeToWildcards.get(type).iterator().next();
+                            icmpMatches.put(icmpType, "wildcard_match:" + wildcard);
+                            matched = true;
+                        } 
+                        // Check code wildcards (e.g., "any:0" allows "8:0")
+                        else if (codeToWildcards.containsKey(code)) {
+                            String wildcard = codeToWildcards.get(code).iterator().next();
+                            icmpMatches.put(icmpType, "wildcard_match:" + wildcard);
+                            matched = true;
+                        }
+                    }
+                    
+                    // No match found
+                    if (!matched) {
+                        icmpMatches.put(icmpType, "no_match");
+                        resultMap.put("matches", false);
+                        resultMap.put("failedOn", "icmp:" + icmpType);
+                    }
+                }
+            }
+        }
+        
+        // Add match details to result
+        resultMap.put("tcpMatches", tcpMatches);
+        resultMap.put("udpMatches", udpMatches);
+        resultMap.put("icmpMatches", icmpMatches);
+        
+        return resultMap;
+    }
+
+    /**
+     * Helper method to find the smallest range in the service group that contains the user range.
+     */
+    private String findBestContainingRange(int userStart, int userEnd, List<String> sgPorts) {
+        String bestMatch = null;
+        int smallestRangeSize = Integer.MAX_VALUE;
+        
+        for (String sgPort : sgPorts) {
+            if (sgPort == null) continue;
+            if (sgPort.contains("-")) {
+                String[] range = sgPort.split("-");
+                try {
+                    int sgStart = Integer.parseInt(range[0]);
+                    int sgEnd = Integer.parseInt(range[1]);
+                    
+                    // Check if SG range contains user range
+                    if (sgStart <= userStart && sgEnd >= userEnd) {
+                        int rangeSize = sgEnd - sgStart;
+                        if (rangeSize < smallestRangeSize) {
+                            smallestRangeSize = rangeSize;
+                            bestMatch = sgPort;
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    // Skip invalid ranges
+                    continue;
+                }
+            }
+        }
+        
+        return bestMatch;
+    }
+
+    /**
+     * Helper function to check if an IP is present in a list of subnets or IP addresses.
+     */
+    @UserFunction("policy.isIpInSubnetList")
+    @Description("Checks if an IP is present in a list of subnets or IPs")
+    public boolean isIpInSubnetList(
+            @Name("ip") String ip,
+            @Name("subnetList") List<String> subnetList) {
+        
+        if (ip == null || subnetList == null || subnetList.isEmpty()) {
+            return false;
+        }
+        
+        try {
+            InetAddress ipAddress = InetAddress.getByName(ip);
+            boolean isIPv4 = ipAddress.getAddress().length == 4;
+            
+            for (String subnet : subnetList) {
+                if (subnet == null) continue;
+                // Check if the subnet entry is a single IP address
+                if (!subnet.contains("/")) {
+                    try {
+                        InetAddress subnetAddress = InetAddress.getByName(subnet);
+                        if (Arrays.equals(ipAddress.getAddress(), subnetAddress.getAddress())) {
+                            return true;
+                        }
+                    } catch (UnknownHostException e) {
+                        // Skip invalid addresses
+                        continue;
+                    }
+                } else {
+                    // Handle IPv4 subnet
+                    if (isIPv4 && subnet.contains(".")) {
+                        try {
+                            SubnetUtils utils = new SubnetUtils(subnet);
+                            utils.setInclusiveHostCount(true);
+                            if (utils.getInfo().isInRange(ip)) {
+                                return true;
+                            }
+                        } catch (IllegalArgumentException e) {
+                            // Skip invalid subnets
+                            continue;
+                        }
+                    } 
+                    // Handle IPv6 subnet
+                    else if (!isIPv4 && subnet.contains(":")) {
+                        try {
+                            String[] parts = subnet.split("/");
+                            if (parts.length != 2) {
+                                continue; // Invalid subnet format
+                            }
+                            String subnetAddr = parts[0];
+                            int prefixLength = Integer.parseInt(parts[1]);
+                            
+                            byte[] ipBytes = ipAddress.getAddress();
+                            byte[] subnetBytes = InetAddress.getByName(subnetAddr).getAddress();
+                            
+                            // Compare the prefix bits
+                            int fullBytes = prefixLength / 8;
+                            int remainingBits = prefixLength % 8;
+                            
+                            // Check full bytes
+                            for (int i = 0; i < fullBytes && i < ipBytes.length; i++) {
+                                if (ipBytes[i] != subnetBytes[i]) {
+                                    return false;
+                                }
+                            }
+                            
+                            // Check remaining bits
+                            if (remainingBits > 0 && fullBytes < ipBytes.length) {
+                                int mask = 0xFF << (8 - remainingBits);
+                                if ((ipBytes[fullBytes] & mask) != (subnetBytes[fullBytes] & mask)) {
+                                    return false;
+                                }
+                            }
+                            
+                            return true;
+                        } catch (UnknownHostException | NumberFormatException e) {
+                            // Skip invalid subnets or prefix lengths
+                            continue;
+                        }
+                    }
+                }
+            }
+            
+            return false;
+        } catch (UnknownHostException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Helper function to check if one list is a subset of another.
+     */
+    private boolean isSubsetOf(List<String> subset, List<String> superset) {
+        if (subset == null || superset == null || subset.isEmpty()) {
+            return false;
+        }
+        return superset.containsAll(subset);
+    }
+
+    /**
+     * Helper method to compute the union of two lists, removing duplicates.
+     */
+    private List<String> union(List<String> list1, List<String> list2) {
+        Set<String> set = new HashSet<>();
+        set.addAll(list1);
+        set.addAll(list2);
+        return new ArrayList<>(set);
+    }
+}
